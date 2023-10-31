@@ -26,7 +26,7 @@ public interface LUTInterface {
      * @param X The state action vector used to index the LookUpTable
      * @return The index where this vector maps to
      */
-    public int indexFor(double [] X);
+//    public int indexFor(double [] X);
 
 
 }
