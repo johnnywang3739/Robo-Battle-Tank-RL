@@ -1,139 +1,75 @@
 import robocode.*;
-import java.awt.*;
 import java.awt.Color;
-import robocode.util.Utils;
-
 import java.io.*;
 
-
 public class MyAgent extends AdvancedRobot {
-    private RobotState current_state = new RobotState(); // Initialize with a new state
-    private RobotState previous_state = new RobotState(); // Initialize with a new state
-    public enum opMode { onScan, onAction };
-    public static int current_action_index;
-    public static double enemyBearing;
-    private opMode my_opMode = opMode.onScan;
-
-    private double battlefield_Width = 800.0;
+    private static RobotState current_state = new RobotState(); // initialise state object to store all
+    // the current state values
+    private static RobotState previous_state = new RobotState(); // to store previous state values
+    private enum opMode { onScan, onAction };
+    private static opMode my_opMode = opMode.onScan; // a flag to determine a state-action cycle
+    public enum Policy {onPolicy, offPolicy};
+    private final Policy policy = Policy.onPolicy; // define policy
+    private static double reward = 0.0;
+    private static double total_reward = 0.0;
+    private final boolean enable_immediate_rewards = true; // flag for immediate rewards
+    private final double gamma = 0.8;     // discount factor
+    private final double alpha = 0.3;    // learning rate
+    private final double immediate_bonus = 0.8; // rewards
+    private final double terminal_bonus = 1.2;
+    private final double immediate_penalty = -0.3;
+    private final double terminal_penalty = -0.45;
+    private final double start_decay_round = 1000;
+    private final double end_decay_round = 5000;
+    private final double decay_rate = 0.9988;
+    private final double initial_epsilon = 0.9;
+    private final double final_epsilon = 0.01;
+    private double battlefield_Width = 800.0; // battleground size
     private double battlefield_height = 600.0;
-    /* Bonus and Penalty */
-    /* Bonus and Penalty */
-    private final double immediateBonus = 0.5;
-    private final double terminalBonus = 2.0;
-    private final double immediatePenalty = -0.1;
-    private final double terminalPenalty = -0.2;
-    // Whether take immediate rewards
-    public static boolean takeImmediate = true;
-    // Whether take on-policy algorithm
-    public static boolean onPolicy = true;
-    // Discount factor
-    private double gamma = 0.9;
-    // Learning rate
-    private double alpha = 0.1;
-    // Random number for epsilon-greedy policy
-    private double epsilon = 0.2;
-    // Q
 
-    // Reward
-    private double reward = 0.0;
-
-
-    // static numbers for winning rounds
-    public static int totalRound = 0;
-    public static int round = 0;
-    public static int winRound = 0;
-    //    public static double[] winPercentage = new double[351];
-    public static double winPercentage = 0.0;
-
-
-
-
-    public static LUT myLUT = new LUT(RobotState.HP.values().length,
-            RobotState.HP.values().length,
+    private static int total_round = 0;
+    private static int round = 0;
+    private static int winRound = 0;
+    private static double win_percentage = 0.0;
+    private static double enemyBearing;
+    private static double epsilon;
+    public static LUT myLUT = new LUT( // initialise the LUT with the size of the state-actions.
+            RobotState.Energy.values().length,
+            RobotState.Energy.values().length,
             RobotState.Distance.values().length,
             RobotState.Distance.values().length,
-            RobotState.Action.values().length);
+            RobotState.Action.values().length
+    );
 
     @Override
     public void run() {
-
-        // Set the robot colors
+//        File lut_file = getDataFile("LUT.txt");
+//        myLUT.load(lut_file);  // to load previously saved LUT
         setBodyColor(Color.red);
-        setGunColor(Color.darkGray);
-        setRadarColor(Color.white);
         setBulletColor(Color.red);
-        // Debug output to Robocode screen
-
         this.battlefield_Width = getBattleFieldWidth();
         this.battlefield_height= getBattleFieldHeight();
-        // Main robot loop
+        // Main loop
         while (true) {
-            System.out.println(winRound);
+//            System.out.println(winRound);
             switch (my_opMode) {
                 case onScan:
-//                    System.out.println("Scanning...");
                     reward = 0.0;
-                    turnRadarRight(90); // Scan for other robots
-//                    myLUT.printLUT();
+                    turnRadarRight(180.0); // Scan for enemy
                     break;
                 case onAction:
-//                    System.out.println("Acting...");
-                    // Perform action based on the current state
-                    // ...
-                    current_action_index = (Math.random() <= epsilon)
-                            ? this.myLUT.getRandomAction():
-                            this.myLUT.getBestAction(current_state.get_my_HP_quantised().ordinal(),
-                                    current_state.get_enemy_HP_quantised().ordinal(),
-                                    current_state.get_quantised_distance_to_enemy().ordinal(),
-                                    current_state.get_quantised_distance_to_wall().ordinal());
-
-//                    curAction = Action.values()[curActionIndex];
-                    current_state.setMy_action(RobotState.Action.values()[current_action_index]);
+                    int current_action_index = (Math.random() <= epsilon)
+                            ? myLUT.get_random_action()
+                            : myLUT.calculate_best_action(current_state);
+                    current_state.set_action(RobotState.Action.values()[current_action_index]);
 //                    System.out.println(current_state.getMy_action());
-
-                    switch (current_state.getMy_action()) {
-                        case FIRE: {
-                            turnGunRight(getHeading() - getGunHeading() + enemyBearing);
-                            fire(3);
-                            break;
-                        }
-
-                        case TURN_LEFT: {
-                            setTurnLeft(30);
-                            execute();
-                            break;
-                        }
-
-                        case TURN_RIGHT: {
-                            setTurnRight(30);
-                            execute();
-                            break;
-                        }
-
-                        case GO_FORWARD: {
-                            setAhead(100);
-                            execute();
-                            break;
-                        }
-                        case GO_BACKWARD: {
-                            setBack(100);
-                            execute();
-                            break;
-                        }
-                    }
-                    double calcualted_Q = 0.0;
-                    calcualted_Q = this.myLUT.calculate_Q(alpha, gamma, reward, onPolicy, previous_state, current_state);
-                    this.myLUT.setQValue(previous_state);
+                    perform_actions(current_state.get_my_action());
+                    myLUT.computeQ(alpha, gamma, reward, policy, previous_state, current_state);
                     my_opMode = opMode.onScan;
-//                    System.out.println(calcualted_Q);
                     break;
             }
-
-            execute(); // Ensure all pending actions are executed before drawing
-
+            execute(); // Ensure all pending actions are executed
         }
-
-
     }
 
     @Override
@@ -141,145 +77,176 @@ public class MyAgent extends AdvancedRobot {
         // Copy current state to previous state
         enemyBearing = e.getBearing();
         previous_state = new RobotState(current_state);
-        // Update current state with the new scanned datac
-
         current_state.update_robotState(this.battlefield_Width, this.battlefield_height,
                 getX(), getY(), getEnergy(),
                 e.getEnergy(), e.getDistance());
 
         // Set operation mode to onAction
         my_opMode = opMode.onAction;
-        // Print current state
-//        logDebugInfo();
+    }
+    public void perform_actions(RobotState.Action action){
+        switch (action) {
+            case FIRE_CANNON: {
+                turnGunRight(getHeading() - getGunHeading() + enemyBearing);
+                fire(3.0);
+                break;
+            }
+            case TURN_LEFT: {
+                setTurnLeft(30);
+                setAhead(100);
+                execute();
+                break;
+            }
+            case TURN_RIGHT: {
+                setTurnRight(30);
+                setAhead(100);
+                execute();
+                break;
+            }
+            case GO_FORWARD: {
+                setAhead(150);
+                execute();
+                break;
+            }
+            case GO_BACK: {
+                setBack(150);
+                execute();
+                break;
+            }
+        }
+    }
+    @Override
+    public void onBulletMissed(BulletMissedEvent e){
+        if(enable_immediate_rewards) {
+            reward += immediate_penalty;
+            total_reward += reward;
+        }
     }
     @Override
     public void onHitByBullet(HitByBulletEvent e){
-        if(takeImmediate) {
-            reward += immediatePenalty;
+        if(enable_immediate_rewards) {
+            reward += immediate_penalty;
+            total_reward += reward;
         }
-    }
-
-    @Override
-    public void onBulletHit(BulletHitEvent e){
-        if(takeImmediate) {
-            reward += immediateBonus;
-        }
-    }
-
-    @Override
-    public void onBulletMissed(BulletMissedEvent e){
-        if(takeImmediate) {
-            reward += immediatePenalty;
-        }
-    }
-
-    @Override
-    public void onHitWall(HitWallEvent e){
-        if(takeImmediate) {
-            reward += immediatePenalty;
-        }
-        avidObstacle();
-    }
-    public void avidObstacle() {
-        setBack(200);
-        setTurnRight(60);
-        execute();
     }
     @Override
     public void onHitRobot(HitRobotEvent e) {
-        if(takeImmediate) {
-            reward += immediatePenalty;
+        if(enable_immediate_rewards) {
+            reward += immediate_penalty;
+            total_reward += reward;
         }
-        avidObstacle();
+        setBack(200);
+        setTurnRight(60);
+        execute();
+        this.execute();
     }
-
-
-
+    @Override
+    public void onHitWall(HitWallEvent e){
+        if(enable_immediate_rewards) {
+            reward += immediate_penalty;
+            total_reward += reward;
+        }
+        go_to_centre(battlefield_Width, battlefield_height);
+        this.execute();
+    }
+    @Override
+    public void onBulletHit(BulletHitEvent e){
+        if(enable_immediate_rewards) {
+            reward += immediate_bonus;
+            total_reward += reward;
+        }
+    }
     @Override
     public void onWin(WinEvent e){
-
-        reward = terminalBonus;
-        double calcualted_Q = 0.0;
-        calcualted_Q = this.myLUT.calculate_Q(alpha, gamma, reward, onPolicy, previous_state, current_state);
-        this.myLUT.setQValue(previous_state);
-
-
         winRound++;
-        totalRound++;
-        if((totalRound % 100 == 0) && (totalRound != 0)){
-            winPercentage = (double) winRound / 100;
-            System.out.println(String.format("%d, %.3f",++round, winPercentage));
-//            File folderDst1 = getDataFile(fileToSaveName);
-//            log.writeToFile(folderDst1, winPercentage, round);
-            saveWinRateToTXT(totalRound, winRound);
-//            myLUT.saveLUTToFile(getDataFile("LUT_" + totalRound + ".txt"));
+        total_round++;
+        reward = terminal_bonus;
+        total_reward += reward;
+        myLUT.computeQ(alpha, gamma, reward, policy, previous_state, current_state);
+        double mean_total_rewards = total_reward / total_round;
+        reward = 0.0;
+        update_epsilon();
+        if((total_round % 100 == 0) && (total_round != 0)){
+            win_percentage = (double) winRound / 100;
+            System.out.println(String.format("%d, %.3f",++round, win_percentage));
+            save_win_rate(total_round, winRound);
+            save_mean_total_rewards(total_round, mean_total_rewards);
+            myLUT.save(getDataFile("LUT"  + ".txt"));
             winRound = 0;
-
-
         }
 
     }
 
     @Override
     public void onDeath(DeathEvent e){
-
-        reward = terminalPenalty;
-        double calcualted_Q = 0.0;
-        calcualted_Q = this.myLUT.calculate_Q(alpha, gamma, reward, onPolicy, previous_state, current_state);
-        this.myLUT.setQValue(previous_state);
-        totalRound++;
-
-
-
-        if((totalRound % 100 == 0) && (totalRound != 0)){
-            winPercentage = (double) winRound / 100;
-            System.out.println(String.format("%d, %.3f",++round, winPercentage));
-//            File folderDst1 = getDataFile(fileToSaveName);
-//            log.writeToFile(folderDst1, winPercentage, round);
-            saveWinRateToTXT(totalRound, winRound);
-//            myLUT.saveLUTToFile(getDataFile("LUT_" + totalRound + ".txt"));
+        total_round++;
+        reward = terminal_penalty;
+        total_reward += reward;
+        myLUT.computeQ(alpha, gamma, reward, policy, previous_state, current_state);
+        double meanTotalReward = total_reward / total_round;
+        reward = 0.0;
+        update_epsilon();
+        if((total_round % 100 == 0) && (total_round != 0)){
+            win_percentage = (double) winRound / 100;
+            System.out.println(String.format("%d, %.3f",++round, win_percentage));
+            save_win_rate(total_round, winRound);
+            save_mean_total_rewards(total_round, meanTotalReward);
+            myLUT.save(getDataFile("LUT"  + ".txt"));
             winRound = 0;
-
-            //saveTable();
         }
-
-
     }
     @Override
     public void onBattleEnded(BattleEndedEvent event) {
-        // Call saveLUTToFile here when the battle ends
         if (!event.isAborted()) {
             File lutFile = getDataFile("LUT_end_of_battle.txt");
-            myLUT.saveLUTToFile(lutFile);
+            myLUT.save(lutFile);
         }
     }
+    private void update_epsilon() {
 
-    private void saveWinRateToTXT(int totalRounds, int winRounds) {
+        if (total_round < start_decay_round) {
+            epsilon = initial_epsilon;
+        }
+        else if (total_round >= start_decay_round && total_round <= end_decay_round) {
+            int decaySteps = (int)(total_round - start_decay_round);
+            epsilon = initial_epsilon * Math.pow(decay_rate, decaySteps);
+        }
+        else if (total_round > end_decay_round) {
+            epsilon = final_epsilon;
+        }
+    }
+    public void go_to_centre(double field_width, double field_height) {
+        double centerX = field_width / 2;
+        double centerY = field_height / 2;
+        double turn_angle = Math.toDegrees(Math.atan2(centerX - getX(), centerY - getY())) - getHeading();
+        turn_angle += turn_angle > 180 ? -360 : (turn_angle < -180 ? 360 : 0);// Normalise the turn angle
+        turnRight(turn_angle);
+        ahead(200);
+    }
+
+    private void save_win_rate(int totalRounds, int winRounds) {
         double winRate = winRounds / 100.0;
-        out.println("Saving win rate: " + winRate); // Debugging output
-
         try {
-            // Use getDataFile to create a File object, then get the path
             String filePath = getDataFile("win_rate.txt").getAbsolutePath();
-
-            // FileWriter and BufferedWriter for appending text to the file
             FileWriter fw = new FileWriter(filePath, true);
             BufferedWriter bw = new BufferedWriter(fw);
             PrintWriter out = new PrintWriter(bw);
-
-            // Write the data as a new line in the text file
-            out.println(totalRounds + "," + winRounds + "," + String.format("%.2f", winRate));
-
-            // Close the PrintWriter, which will also close BufferedWriter and FileWriter
+            out.println(String.format("%.2f", winRate));
             out.close();
         } catch (IOException e) {
-            // In case of an exception, print a stack trace for debugging
             e.printStackTrace(out);
         }
     }
-
-
-
-
-
+    private void save_mean_total_rewards(int totalRounds, double meanTotalReward) {
+        try {
+            String filePath = getDataFile("mean_total_reward.txt").getAbsolutePath();
+            FileWriter fw = new FileWriter(filePath, true);
+            BufferedWriter bw = new BufferedWriter(fw);
+            PrintWriter out = new PrintWriter(bw);
+            out.println(String.format("%.2f", meanTotalReward));
+            out.close();
+        } catch (IOException e) {
+            e.printStackTrace(out);
+        }
     }
+}
