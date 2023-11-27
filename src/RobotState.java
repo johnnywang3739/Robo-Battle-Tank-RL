@@ -35,7 +35,6 @@ public class RobotState {
         this.quantised_distance_from_centre = Distance.CLOSE;
         this.my_Energy_quantised = Energy.HIGH;
         this.enemy_Energy_quantised = Energy.HIGH;
-//        this.quantised_my_heading= Heading.NORTH;
         this.my_action = Action.GO_FORWARD;
     }
     public RobotState(RobotState other) {
@@ -75,9 +74,9 @@ public class RobotState {
 //    public Velocity getQuantised_enemy_velocity(){return this.enemy_velocity_quantised;}
 
     public void quantise_distance_to_enemy() {
-        if (this.raw_distanceToEnemy < 333) {
+        if (this.raw_distanceToEnemy < 167) {
             this.quantised_distance_to_enemy = Distance.CLOSE;
-        } else if (this.raw_distanceToEnemy < 667) {
+        } else if (this.raw_distanceToEnemy < 167*2) {
             this.quantised_distance_to_enemy = Distance.MEDIUM;
         } else {
             this.quantised_distance_to_enemy = Distance.FAR;
@@ -88,9 +87,9 @@ public class RobotState {
         double centerY = field_height / 2;
 
         double distance_from_center = Math.hypot(getX() - centerX, getY() - centerY);
-        if (distance_from_center < 100) {
+        if (distance_from_center < 167) {
             this.quantised_distance_from_centre = Distance.CLOSE;
-        } else if (distance_from_center < 200) {
+        } else if (distance_from_center < 167*2) {
             this.quantised_distance_from_centre = Distance.MEDIUM;
         } else {
             this.quantised_distance_from_centre = Distance.FAR;

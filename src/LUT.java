@@ -85,7 +85,7 @@ public class LUT implements LUTInterface{
     }
 
 
-    public double computeQ(double alpha, double gamma, double reward, MyAgent.Policy policy, RobotState previous_state,
+    public double computeQ(double alpha, double gamma, double reward, MyAgent_LUT.Policy policy, RobotState previous_state,
                            RobotState current_state){
         double previous_Q = getQValue(previous_state, previous_state.get_my_action().ordinal());
 
@@ -94,7 +94,7 @@ public class LUT implements LUTInterface{
         int best_action_index_offPolicy = calculate_best_action(current_state);
         double maxQ_offPolicy = getQValue(current_state, best_action_index_offPolicy);
         double next_Q;
-        if (policy == MyAgent.Policy.onPolicy) {
+        if (policy == MyAgent_LUT.Policy.onPolicy) {
             next_Q = next_Q_onPolicy;
         } else {
             next_Q = maxQ_offPolicy;
