@@ -27,6 +27,8 @@ public interface NeuralNetInterface extends CommonInterface {
      */
     public double sigmoid(double x);
 
+    double train(double[] sample_x, double[] expected_output);
+
     /**
      * This method implements a general sigmoid with asymptotes bounded by (a, b)
      * @param x The input

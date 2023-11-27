@@ -14,7 +14,7 @@ public interface CommonInterface {
      * @param X The input vector. An array of doubles.
      * @return The value returned by the LUT or NN for this input vector
      */
-    public double outputFor(double[] X);
+    public double[] outputFor(double[] X);
 
     /**
      * This method will tell the NN or the LUT the output
@@ -25,7 +25,7 @@ public interface CommonInterface {
      * @param argValue The new value to learn
      * @return The error in the output for that input vector
      */
-    public double train(double[] X, double argValue);
+    public double train(double[] X, double[] argValue);
 
     /**
      * A method to write either a LUT or weights of a neural net to a file.
